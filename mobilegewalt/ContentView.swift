@@ -11,11 +11,15 @@ import UIKit
 struct ContentView: View {
     @StateObject var logger = globallogger
     @State private var copyindex: Int? = nil
-    @ObservedObject var stage = stagestatus
     
     var body: some View {
         TabView {
             MGTab
+                .tabItem {
+                    Label("MobileGewalt", systemImage: "wrench.and.screwdriver")
+                }
+            
+            SettingsTab
                 .tabItem {
                     Label("MobileGewalt", systemImage: "wrench.and.screwdriver")
                 }
@@ -34,7 +38,7 @@ struct ContentView: View {
                             .padding(.vertical, 6)
                             .onTapGesture {
                                 UIPasteboard.general.string = log
-
+                                
                                 let generator = UIImpactFeedbackGenerator(style: .light)
                                 generator.impactOccurred()
                             }
@@ -43,35 +47,12 @@ struct ContentView: View {
                 
                 Button {
                     let generator = UIImpactFeedbackGenerator(style: .light)
+                    generator.impactOccurred()
                     
-                    if !stage.onedone {
-                        logger.log("[ 1/3 ] starting stage 1")
-                        generator.impactOccurred()
-                        kraftdl28()
-                        globallogger.divider()
-                    } else {
-                        if !stage.twodone {
-                            logger.log("[ 2/3 ] starting stage 2")
-                            generator.impactOccurred()
-                            kraftBLDMgr()
-                            globallogger.divider()
-                        } else {
-                            let vc = UIApplication.shared.connectedScenes
-                                    .compactMap { $0 as? UIWindowScene }
-                                    .first?.windows.first?.rootViewController
-                            
-                            logger.log("[ 3/3 ] starting stage 3")
-                            generator.impactOccurred()
-                            if let vc = vc {
-                                kraftepub(from: vc)
-                            } else {
-                                logger.log("[ - ] could not get UIViewController")
-                            }
-                            globallogger.divider()
-                        }
-                    }
+                    globallogger.log("[ + ] krafting downloads.28 with http://localhost:\(freeport)")
+                    kraftdl28()
                 } label: {
-                    Text(stage.text)
+                    Text("Apply")
                         .bold()
                         .frame(maxWidth: .infinity)
                         .padding()
@@ -82,16 +63,36 @@ struct ContentView: View {
                         .padding(.bottom)
                 }
                 .padding(.horizontal)
-
+                
                 Spacer()
             }
             .navigationTitle("MobileGewalt")
+        }
+    }
+    
+    var SettingsTab: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                List {
+                    
+                }
+            }
+            .navigationTitle("Settings")
         }
     }
 }
 
 @main
 struct mobilegewalt: App {
+    init () {
+        let port = freeport
+        print("[ i ] server running on: \(port)")
+        
+        DispatchQueue.global().async {
+            try? httpserver(port: port)
+        }
+    }
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
