@@ -864,6 +864,7 @@ protocol SwiftBridgeGenericFreer {
     
 protocol SwiftBridgeGenericCopyTypeFfiRepr {}
 
+@preconcurrency
 public class RustString: RustStringRefMut {
     var isOwned: Bool = true
 
@@ -871,7 +872,7 @@ public class RustString: RustStringRefMut {
         super.init(ptr: ptr)
     }
 
-    deinit {
+    nonisolated deinit {
         if isOwned {
             __swift_bridge__$RustString$_free(ptr)
         }
@@ -888,17 +889,23 @@ extension RustString {
         }))
     }
 }
+@preconcurrency
 public class RustStringRefMut: RustStringRef {
     public override init(ptr: UnsafeMutableRawPointer) {
         super.init(ptr: ptr)
     }
+
+    nonisolated deinit {}
 }
+@preconcurrency
 public class RustStringRef {
     var ptr: UnsafeMutableRawPointer
 
     public init(ptr: UnsafeMutableRawPointer) {
         self.ptr = ptr
     }
+
+    nonisolated deinit {}
 }
 extension RustStringRef {
     public func len() -> UInt {
