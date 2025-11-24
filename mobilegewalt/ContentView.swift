@@ -10,7 +10,11 @@ import UIKit
 
 struct ContentView: View {
     @StateObject var logger = globallogger
-    @State private var copyindex: Int? = nil
+    @State var copyindex: Int? = nil
+    @State var showparingimporter = false
+    @State var showgestaltimporter = false
+    @AppStorage("PairingFile") var pairingfile: String?
+    @AppStorage("MobileGestalt") var mobilegestalt: String?
     
     var body: some View {
         TabView {
@@ -21,7 +25,7 @@ struct ContentView: View {
             
             SettingsTab
                 .tabItem {
-                    Label("MobileGewalt", systemImage: "wrench.and.screwdriver")
+                    Label("Settings", systemImage: "gear")
                 }
         }
     }
@@ -74,7 +78,24 @@ struct ContentView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 List {
-                    
+                    Button {
+                        if pairingfile == nil {
+                            showparingimporter.toggle()
+                        } else {
+                            pairingfile = nil
+                        }
+                    } label: {
+                        Text(pairingfile == nil ? "Select .mobiledevicepairing" : "Reset .mobiledevicepairing")
+                    }
+                    Button {
+                        if mobilegestalt == nil {
+                            showgestaltimporter.toggle()
+                        } else {
+                            mobilegestalt = nil
+                        }
+                    } label: {
+                        Text(mobilegestalt == nil ? "Select com.apple.MobileGestalt.plist" : "Reset com.apple.MobileGestalt.plist")
+                    }
                 }
             }
             .navigationTitle("Settings")
