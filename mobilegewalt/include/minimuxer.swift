@@ -147,8 +147,7 @@ extension __swift_bridge__$Option$MinimuxerError {
     }
 }
 
-
-
+@preconcurrency
 public class RustDirectoryEntry: RustDirectoryEntryRefMut {
     var isOwned: Bool = true
 
@@ -156,24 +155,37 @@ public class RustDirectoryEntry: RustDirectoryEntryRefMut {
         super.init(ptr: ptr)
     }
 
-    deinit {
+    nonisolated deinit {
         if isOwned {
             __swift_bridge__$RustDirectoryEntry$_free(ptr)
         }
     }
 }
+
+@preconcurrency
 public class RustDirectoryEntryRefMut: RustDirectoryEntryRef {
     public override init(ptr: UnsafeMutableRawPointer) {
         super.init(ptr: ptr)
     }
+
+    nonisolated deinit {
+        // Nothing to free here; just match isolation
+    }
 }
+
+@preconcurrency
 public class RustDirectoryEntryRef {
     var ptr: UnsafeMutableRawPointer
 
     public init(ptr: UnsafeMutableRawPointer) {
         self.ptr = ptr
     }
+
+    nonisolated deinit {
+        // Nothing to free here
+    }
 }
+
 extension RustDirectoryEntryRef {
     public func path() -> RustString {
         RustString(ptr: __swift_bridge__$RustDirectoryEntry$path(ptr))
@@ -244,7 +256,7 @@ extension RustDirectoryEntry: Vectorizable {
     }
 }
 
-
+@preconcurrency
 public class AfcFileManager: AfcFileManagerRefMut {
     var isOwned: Bool = true
 
@@ -252,7 +264,7 @@ public class AfcFileManager: AfcFileManagerRefMut {
         super.init(ptr: ptr)
     }
 
-    deinit {
+    nonisolated deinit {
         if isOwned {
             __swift_bridge__$AfcFileManager$_free(ptr)
         }
@@ -275,17 +287,24 @@ extension AfcFileManager {
         try { let val = __swift_bridge__$AfcFileManager$copy_file_outside_afc({ let rustString = from.intoRustString(); rustString.isOwned = false; return rustString.ptr }(), { let rustString = to.intoRustString(); rustString.isOwned = false; return rustString.ptr }()); switch val.tag { case __swift_bridge__$ResultVoidAndErrors$ResultOk: return case __swift_bridge__$ResultVoidAndErrors$ResultErr: throw val.payload.err.intoSwiftRepr() default: fatalError() } }()
     }
 }
+@preconcurrency
 public class AfcFileManagerRefMut: AfcFileManagerRef {
     public override init(ptr: UnsafeMutableRawPointer) {
         super.init(ptr: ptr)
     }
+
+    nonisolated deinit {}
 }
+
+@preconcurrency
 public class AfcFileManagerRef {
     var ptr: UnsafeMutableRawPointer
 
     public init(ptr: UnsafeMutableRawPointer) {
         self.ptr = ptr
     }
+
+    nonisolated deinit {}
 }
 extension AfcFileManagerRef {
     class public func contents() -> RustVec<RustDirectoryEntry> {
