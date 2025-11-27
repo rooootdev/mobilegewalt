@@ -2,147 +2,104 @@
 //  HTTPHandler.swift
 //  mobilegewalt
 //
-//  Created by ruter on 24.11.25.
+//  Created by ruter on 27.11.25.
 //
 
 import Foundation
-import NIO
-import NIOHTTP1
+import Swifter
+import Network
 
-func httpserver(port: Int) throws {
-    let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+var netService: NetService?
 
-    let threadPool = NIOThreadPool(numberOfThreads: 2)
-    threadPool.start()
-
-    let fileIO = NonBlockingFileIO(threadPool: threadPool)
-
-    let documentsDir = FileManager.default.urls(
+func httpserver(port: in_port_t) {
+    let server = HttpServer()
+    
+    let docs = FileManager.default.urls(
         for: .documentDirectory,
         in: .userDomainMask
     ).first!
+    
+    print("[ i ] serving documents directory: \(docs.path)")
 
-    let bootstrap = ServerBootstrap(group: group)
-        .serverChannelOption(ChannelOptions.backlog, value: 256)
-        .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
-        .childChannelInitializer { channel in
-            channel.pipeline.configureHTTPServerPipeline(withErrorHandling: true).flatMap {
-                channel.pipeline.addHandler(HTTPHandler(documentRoot: documentsDir, fileIO: fileIO))
+    server["/:path"] = { request in
+        var path = request.params.first(where: { $0.0 == "path" })?.1 ?? ""
+        if path.isEmpty { path = "index.html" }
+        
+        let fileurl = docs.appendingPathComponent(path)
+        
+        guard FileManager.default.fileExists(atPath: fileurl.path) else {
+            let body = "<pre>fuck, 404</pre>"
+            return HttpResponse.raw(404, "Not Found", ["Content-Type": "text/html"]) { writer in
+                try writer.write(Array(body.utf8))
             }
         }
-        .childChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
+        
+        do {
+            let data = try Data(contentsOf: fileurl)
+            let contentType = mimetype(fileurl)
+            return HttpResponse.raw(200, "OK", ["Content-Type": contentType]) { writer in
+                try writer.write(data)
+            }
+        } catch {
+            let body = "<pre>fuck, 500</pre>"
+            return HttpResponse.raw(500, "Internal Server Error", ["Content-Type": "text/html"]) { writer in
+                try writer.write(Array(body.utf8))
+            }
+        }
+    }
+    
+    server.POST["/uploadPairing"] = { request in
+        guard
+            let contentType = request.headers["content-type"],
+            contentType.contains("application/octet-stream") || contentType.contains("multipart/form-data")
+        else {
+            return HttpResponse.raw(400, "Bad Request", ["Content-Type": "text/html"]) { writer in
+                try writer.write(Array("<pre>Invalid Content-Type</pre>".utf8))
+            }
+        }
 
-    let channel = try bootstrap.bind(host: "0.0.0.0", port: port).wait()
+        let bodyData = Data(request.body)
+        let filename = "uploaded.mobiledevicepairing"
+        let destURL = docs.appendingPathComponent(filename)
 
-    print("[ i ] server running on http://localhost:\(port)")
-    print("[ i ] serving documents directory: \(documentsDir.path)")
+        do {
+            try bodyData.write(to: destURL)
 
-    try channel.closeFuture.wait()
+            DispatchQueue.main.async {
+                UserDefaults.standard.set(String(data: bodyData, encoding: .utf8), forKey: "PairingFile")
+            }
+
+            return HttpResponse.raw(200, "OK", ["Content-Type": "text/html"]) { writer in
+                try writer.write(Array("<pre>Pairing file imported</pre>".utf8))
+            }
+        } catch {
+            return HttpResponse.raw(500, "Internal Server Error", ["Content-Type": "text/html"]) { writer in
+                try writer.write(Array("<pre>Failed to save file: \(error.localizedDescription)</pre>".utf8))
+            }
+        }
+    }
+    
+    do {
+        try server.start(in_port_t(Int(port)), forceIPv4: true)
+        print("[ i ] Server started on port \(port)")
+    } catch {
+        print("[!] Failed to start server: \(error)")
+        return
+    }
+
+    netService = NetService(domain: "local.", type: "_mgserver._tcp.", name: "MobileGewalt", port: Int32(port))
+    netService?.publish()
+    print("[ i ] mDNS published as _mgserver._tcp.local.")
+
+    RunLoop.main.run()
 }
 
-final class HTTPHandler: ChannelInboundHandler {
-    typealias InboundIn = HTTPServerRequestPart
-    typealias OutboundOut = HTTPServerResponsePart
-
-    let documentRoot: URL
-    let fileIO: NonBlockingFileIO
-    var requestHead: HTTPRequestHead?
-
-    init(documentRoot: URL, fileIO: NonBlockingFileIO) {
-        self.documentRoot = documentRoot
-        self.fileIO = fileIO
-    }
-
-    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        let req = self.unwrapInboundIn(data)
-
-        switch req {
-        case .head(let head):
-            requestHead = head
-
-        case .body:
-            break
-
-        case .end:
-            guard let head = requestHead else { return }
-            handleRequest(head, context: context)
-            requestHead = nil
-        }
-    }
-
-    private func handleRequest(_ head: HTTPRequestHead, context: ChannelHandlerContext) {
-        var path = head.uri
-        if path.hasPrefix("/") { path.removeFirst() }
-        if path.isEmpty { path = "index.html" }
-
-        let fileURL = documentRoot.appendingPathComponent(path)
-
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            simpleresponse(
-                status: .notFound,
-                body: "<h1>fuck, 400</h1>",
-                context: context
-            )
-            return
-        }
-
-        serve(at: fileURL, context: context)
-    }
-
-    private func serve(at url: URL, context: ChannelHandlerContext) {
-        do {
-            let handle = try NIOFileHandle(path: url.path)
-            let fileSize = try FileManager.default.attributesOfItem(atPath: url.path)[.size] as! NSNumber
-
-            var headers = HTTPHeaders()
-            headers.add(name: "Content-Type", value: mimetype(url))
-            headers.add(name: "Content-Length", value: "\(fileSize.intValue)")
-
-            let head = HTTPResponseHead(
-                version: .http1_1,
-                status: .ok,
-                headers: headers
-            )
-            context.write(self.wrapOutboundOut(.head(head)), promise: nil)
-
-            let region = FileRegion(fileHandle: handle, readerIndex: 0, endIndex: fileSize.intValue)
-            context.write(self.wrapOutboundOut(.body(.fileRegion(region))), promise: nil)
-
-            context.writeAndFlush(self.wrapOutboundOut(.end(nil))).whenComplete { _ in
-                try? handle.close()
-            }
-
-        } catch {
-            simpleresponse(
-                status: .internalServerError,
-                body: "<h1>fuck, 500</h1>",
-                context: context
-            )
-        }
-    }
-
-    private func simpleresponse(status: HTTPResponseStatus, body: String, context: ChannelHandlerContext) {
-        var headers = HTTPHeaders()
-        headers.add(name: "Content-Type", value: "text/html")
-        headers.add(name: "Content-Length", value: "\(body.utf8.count)")
-
-        let head = HTTPResponseHead(version: .http1_1, status: status, headers: headers)
-        context.write(self.wrapOutboundOut(.head(head)), promise: nil)
-
-        var buf = context.channel.allocator.buffer(capacity: body.utf8.count)
-        buf.writeString(body)
-
-        context.write(self.wrapOutboundOut(.body(.byteBuffer(buf))), promise: nil)
-        context.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: nil)
-    }
-
-    private func mimetype(_ url: URL) -> String {
-        switch url.pathExtension.lowercased() {
-        case "sqlite", "sqlitedb", "db": return "application/octet-stream"
-        case "json": return "application/json"
-        case "plist": return "application/xml"
-        case "html": return "text/html"
-        default: return "application/octet-stream"
-        }
+private func mimetype(_ url: URL) -> String {
+    switch url.pathExtension.lowercased() {
+    case "sqlite", "sqlitedb", "db": return "application/octet-stream"
+    case "json": return "application/json"
+    case "plist": return "application/xml"
+    case "html": return "text/html"
+    default: return "application/octet-stream"
     }
 }

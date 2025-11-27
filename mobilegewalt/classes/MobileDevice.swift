@@ -2,11 +2,9 @@
 //  MobileDevice.swift
 //  mobilegewalt
 //
-//  Created by ruter on 24.11.25.
+//  Copy and pasted by ruter on 24.11.25.
+//  https://github.com/Lakr233/BBackupp/blob/main/BBackupp/Backend/AppleMobileDevice
 //
-
-
-// https://github.com/Lakr233/BBackupp/blob/main/BBackupp/Backend/AppleMobileDevice
 
 import Foundation
 
