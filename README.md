@@ -5,7 +5,7 @@ on-device bl_sbx mobilegestalt modification
 > Work in progress!
 > this is not yet finished!<br>
 > no eta, development is currently:<br>
-> 🟢 `ACTIVE`
+> 🟡 `SEMI-ACTIVE`
 
 ## credits:
 - [hanakim3945/bl_sbx](https://github.com/hanakim3945/bl_sbx) — bl_sbx exploit  
